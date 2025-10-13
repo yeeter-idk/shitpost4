@@ -1,0 +1,12 @@
+html, body{
+  margin: 0px;
+  color: black;
+}
+
+*{
+  font-family: arial;
+}
+
+canvas{
+  width: 100%;
+}
