@@ -53,11 +53,8 @@ class letter {
       );
     }
     
-    if(submerged != 0 && submerged != 1){
-      let speed = Math.hypot(this.sx, this.sy);
-      
-      if(speed < Math.random()) return;
-      
+    let speed = Math.hypot(this.sx, this.sy);      
+    if(submerged != 1 && submerged != 0 && speed > 1){
       let force = Math.abs(submerged - this.lastSub) * speed;
       
       let lateral = this.sx + (Math.random() - 0.5) * force;
@@ -103,8 +100,7 @@ class letter {
       this.x = 0;
       this.sx = Math.abs(this.sx) * boundBounce;  
       this.sy *= boundFriction;
-    }
-    if(this.x + this.width > canvas.width){
+    }else if(this.x + this.width > canvas.width){
       this.x = canvas.width - this.width;
       this.sx = -Math.abs(this.sx) * boundBounce;  
       this.sy *= boundFriction;
@@ -115,8 +111,7 @@ class letter {
       this.y = 0;
       this.sx *= boundFriction;
       this.sy = Math.abs(this.sy) * boundBounce;  
-    }
-    if(this.y + this.height > canvas.height){
+    }else if(this.y + this.height > canvas.height){
       this.y = canvas.height - this.height;
       this.sx *= boundFriction;
       this.sy = -Math.abs(this.sy) * boundBounce;
@@ -153,6 +148,7 @@ class letter {
     
     if(diffX < diffY){ // horiz
       let displaced = diffX * dirX * 0.8;
+      
       this.x += displaced * a;
       other.x -= displaced * b;   
       
@@ -160,6 +156,7 @@ class letter {
       other.sx -= displaced * 0.5 * b; 
     }else{ // vert
       let displaced = diffY * dirY * 0.8;
+      
       this.y += displaced * a;
       other.y -= displaced * b;   
       
@@ -221,7 +218,7 @@ class splash {
     this.x += this.sx;
     this.y += this.sy;
     
-    if(this.y + this.radius > waterLevel * canvas.height)
+    if(this.y - this.radius > waterLevel * canvas.height)
       return true;
       
     return false;
@@ -285,10 +282,12 @@ function setup() {
   charW = metrics.width;
   charH = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
   
-  startingPhrase("Procrastination is a CRAZY drug.", 0);
+  //startingPhrase("Procrastination is a CRAZY drug.", 0);
   
-  //startingPhrase("Procrastination is a CRAZY drug.", -charH * 0.6);
-  //startingPhrase("I don't want to do anything.", charH * 0.6);
+  //startingPhrase("Kriztoffer.", 0);
+  
+  startingPhrase("Procrastination is a CRAZY drug.", -charH * 0.6);
+  startingPhrase("I don't want to do anything.", charH * 0.6);
     
   loop();
 }
@@ -321,6 +320,10 @@ function loop() {
     elem.draw();
   
   drawWater();
+  
+  /*document.getElementById("debug").innerText = 
+    "splashes: " + splashes.length +
+    "\nbubbles: " + bubbles.length;*/
   
   frame++;
   window.requestAnimationFrame(loop);
