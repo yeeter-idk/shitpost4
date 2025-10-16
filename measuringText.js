@@ -12,25 +12,32 @@ function getExactRect(character) {
   let bottom = 0;
   let left = 99999;
   let right = 0;
+  let aveAlpha = 0;
   
   let data = fCtx.getImageData(0, 0, field.width, field.height).data;
   
   for(let x = 0; x < field.width; x++){
     for(let y = 0; y < field.height; y++){
-      if(getPixel(x, y) > 1){
+      let alpha = getPixel(x, y);
+      if(alpha > 1){
         top = Math.min(top, y);
         bottom = Math.max(bottom, y);
         left = Math.min(left, x);
         right = Math.max(right, x);
+        aveAlpha += alpha;
       }
     }
   }
+  
+  let actionWidth = right - left + 1;
+  let actionHeight = bottom - top + 1;
   
   return [
     left - charW, 
     top - charH, 
     right - charW + 1, 
-    bottom - charH + 1
+    bottom - charH + 1,
+    aveAlpha / (actionWidth * actionHeight)
   ];
   
   function getPixel(x, y) {

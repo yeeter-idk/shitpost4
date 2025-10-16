@@ -7,25 +7,30 @@ class letter {
   constructor(character, x, y) {
     this.character = character;
     
-    let [left, top, right, bottom] = getExactRect(character);
+    let [left, top, right, bottom, aveAlpha] = getExactRect(character);
     
     this.offsetX = left;
     this.offsetY = top;
     this.width = right - left;
     this.height = bottom - top;
+    this.aveAlpha = aveAlpha;
     
     this.x = x + this.offsetX;
     this.y = y + this.offsetY;
     
+    this.lastX = this.x;
+    this.lastY = this.y;
+    
     this.sx = 0;
     this.sy = 0;    
     
-    this.startX = x;
-    this.startY = y;
+    this.startX = this.x;
+    this.startY = this.y;
     
     this.mass = (this.width + this.height) / 2;
     
     this.freeze = true;
+    this.inTransit = false;
     
     this.lastSub = 0;
   }
@@ -39,8 +44,10 @@ class letter {
     
     let waterHeight = waterLevel * canvas.height;
     
-    let submerged = (this.y + this.height * 1.25 - waterHeight) / this.height;
+    let submerged = -(waterHeight - this.y - this.height) / this.height;
     submerged = Math.max(0, Math.min(submerged, 1));
+    
+    let speed = Math.hypot(this.sx, this.sy);      
     
     if((submerged - this.lastSub) * 4 > Math.random()){
       bubbles.push(
@@ -53,7 +60,6 @@ class letter {
       );
     }
     
-    let speed = Math.hypot(this.sx, this.sy);      
     if(submerged != 1 && submerged != 0 && speed > 1){
       let force = Math.abs(submerged - this.lastSub) * speed;
       
@@ -78,13 +84,13 @@ class letter {
     let dy = cy - mouse.y;
     let dist = Math.hypot(dx, dy);
     if(mouse.down && mouse.range >= dist){
-      let force = (mouse.range - dist) / mouse.range * 2;
-      //let force = (dist) / mouse.range * -2;
+      let force = (mouse.range - dist) / mouse.range * 20;
       
       this.sx += dx / dist * force;
       this.sy += dy / dist * force;
       
       this.freeze = false;
+      this.inTransit = false;
     }
     
     this.sx *= 1 - 0.15 * submerged;
@@ -93,6 +99,28 @@ class letter {
     if(this.freeze){
       this.sx = 0;
       this.sy = 0;
+      this.x = this.startX;
+      this.y = this.startY;      
+    }
+    if(this.inTransit){
+      let dx = this.startX - this.x;
+      let dy = this.startY - this.y;
+      
+      this.x += dx / 4;
+      this.y += dy / 4;
+      
+      this.sx = 0;
+      this.sy = 0;
+      
+      this.freeze = false;
+      
+      let distToTarget = Math.hypot(dx, dy);
+      if(distToTarget < 1){
+        this.x = this.startX;
+        this.y = this.startY;
+        this.freeze = true;
+        this.inTransit = false;
+      }
     }
     
     this.x += this.sx;
@@ -119,18 +147,15 @@ class letter {
   }
   
   reset() {
-    this.x = this.startX;
-    this.y = this.startY;
-    this.freeze = true;
+    this.inTransit = true;
+    this.freeze = false;
   }
   
   collide(other) {
+    if(this.inTransit || other.inTransit) return;
     if(!rectCol(this.x, this.y, this.width, this.height, other.x, other.y, other.width, other.height))
       return;
-      
-    this.freeze = false;
-    other.freeze = false;
-      
+        
     let diffX = Math.min(
       (this.x + this.width) - other.x,
       (other.x + other.width) - this.x   
@@ -146,6 +171,17 @@ class letter {
     let a = other.mass / this.mass;
     let b = this.mass / other.mass;
     
+    if(this.freeze && other.freeze){
+      a = 1;
+      b = 1;
+    }else if(this.freeze){
+      a = 0;
+      b = 1;
+    }else if(other.freeze){
+      a = 1;
+      b = 0;
+    }
+    
     if(diffX < diffY){ // horiz
       let displaced = diffX * dirX * 0.8;
       
@@ -154,6 +190,10 @@ class letter {
       
       this.sx += displaced * 0.5 * a;
       other.sx -= displaced * 0.5 * b; 
+      
+      let avePerpenSpeed = (this.sy + other.sy) / 2;
+      this.sy += (avePerpenSpeed - this.sy) / 10;
+      other.sy += (avePerpenSpeed - other.sy) / 10;    
     }else{ // vert
       let displaced = diffY * dirY * 0.8;
       
@@ -162,11 +202,35 @@ class letter {
       
       this.sy += displaced * 0.5 * a;
       other.sy -= displaced * 0.5 * b; 
+      
+      let avePerpenSpeed = (this.sx + other.sx) / 2;
+      this.sx += (avePerpenSpeed - this.sx) / 10;
+      other.sx += (avePerpenSpeed - other.sx) / 10;
     }
   }
   
   draw() {
-    ctx.fillText(this.character, this.x - this.offsetX, this.y + charH - this.offsetY);
+    let dist = Math.hypot(this.x - this.lastX, this.y - this.lastY);
+    let size = (this.width + this.height) / 2
+    if(dist > size){
+      ctx.lineWidth = size;
+      ctx.globalAlpha = this.aveAlpha / 255;
+      
+      let offX = this.width / 2;
+      let offY = this.height / 2;
+      
+      ctx.beginPath();
+      ctx.moveTo(this.lastX + offX, this.lastY + offY);
+      ctx.lineTo(this.x + offX, this.y + offY);
+      ctx.stroke();
+      
+      ctx.globalAlpha = 1;
+    }else{
+      ctx.fillText(this.character, this.x - this.offsetX, this.y + charH - this.offsetY);
+    }
+    
+    this.lastX = this.x;
+    this.lastY = this.y;
   }
 }
 
@@ -177,7 +241,7 @@ class bubble {
     this.sx = sx;
     this.sy = sy;
     
-    this.radius = 0.8;
+    this.radius = 1;
   }
   
   update() {
@@ -245,7 +309,8 @@ let mouse = {
   range: 80,
   x: 0, 
   y: 0,
-  down: false
+  down: false,
+  lastTouch: -1000,
 };
 
 let frame = 1;
@@ -268,6 +333,10 @@ function startingPhrase(text, yOffset) {
   }
 }
 
+function reset() {
+  for(let letter of elements) letter.reset();
+}
+
 setup();
 function setup() {
   canvas.width = 600;
@@ -287,7 +356,7 @@ function setup() {
   //startingPhrase("Kriztoffer.", 0);
   
   startingPhrase("Procrastination is a CRAZY drug.", -charH * 0.6);
-  startingPhrase("I don't want to do anything.", charH * 0.6);
+  startingPhrase("Double tap to reset.", charH * 0.6);
     
   loop();
 }
@@ -296,19 +365,20 @@ function loop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
   if(frame % 200 == 0){
-    let randElem = elements[Math.floor(elements.length * Math.random())];
-    randElem.freeze = false;
-  }
-  
-  if(frame % 500 == 0){
-    startingPhrase("Laurence");
+    let frozen = [];
+    for(let letter of elements) if(letter.freeze) frozen.push(letter);
+    
+    if(frozen.length > 0){
+      let randElem = frozen[Math.floor(frozen.length * Math.random())];
+      randElem.freeze = false;
+    }
   }
   
   let targetLevel = Math.min(frame / 50000 + 0.2, 1); 
   
   waterLevel = (1 - targetLevel) * 0.001 + waterLevel * 0.999;
   
-  for(let p = 0; p < 1; p++)
+  for(let p = 0; p < 2; p++)
   for(let i = 0; i < elements.length; i++)
     for(let j = i + 1; j < elements.length; j++)
       elements[i].collide(elements[j]);
@@ -332,18 +402,10 @@ function loop() {
 function drawWater() {
   bCtx.clearRect(0, 0, canvas.width, canvas.height);
   bCtx.fillStyle = "#2babff";
-  bCtx.strokeStyle = "#aadfff";
-  bCtx.globalAlpha = 0.3;
   
   let waterHeight = Math.round(waterLevel * canvas.height);
   
   bCtx.fillRect(0, waterHeight, canvas.width, canvas.height);
-  
-  for(let i = 0; i < bubbles.length; i++) 
-    if(bubbles[i].update()){
-      bubbles.splice(i, 1);
-      i--;
-    }
   
   for(let i = 0; i < splashes.length; i++) 
     if(splashes[i].update()){
@@ -353,15 +415,21 @@ function drawWater() {
   
   for(let part of splashes) 
     part.draw(); 
+  
+  for(let i = 0; i < bubbles.length; i++) 
+    if(bubbles[i].update()){
+      bubbles.splice(i, 1);
+      i--;
+    }
     
-  bCtx.globalAlpha = 1;
   bCtx.globalCompositeOperation = "destination-out";
   for(let part of bubbles) 
     part.draw();
   bCtx.globalCompositeOperation = "source-over";
    
-   
+  ctx.globalAlpha = 0.3;
   ctx.drawImage(buffer, 0, 0);
+  ctx.globalAlpha = 1;
 }
 
 function rectCol(ax, ay, aw, ah, bx, by, bw, bh, forWalls = false) {
@@ -386,6 +454,12 @@ canvas.addEventListener("touchstart", (e) => {
   mouse.x = x;
   mouse.y = y;
   mouse.down = true;
+  
+  let curTouch = performance.now();
+  
+  if(curTouch - mouse.lastTouch <= 200) reset();
+  
+  mouse.lastTouch = curTouch;
 });
 canvas.addEventListener("touchmove", (e) => {
   e.preventDefault();
