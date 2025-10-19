@@ -35,8 +35,8 @@ class letter {
     this.lastSub = 0;
   }
   
-  update() {
-    this.sy += 0.1;
+  update(subStep) {
+    this.sy += 0.1 * subStep;
     
     // centered
     let cx = this.x + this.width * 0.5; 
@@ -49,6 +49,7 @@ class letter {
     
     let speed = Math.hypot(this.sx, this.sy);      
     
+    if(Math.random() < subStep)
     if((submerged - this.lastSub) * 4 > Math.random()){
       bubbles.push(
         new bubble(
@@ -60,6 +61,7 @@ class letter {
       );
     }
     
+    if(Math.random() < subStep)
     if(submerged != 1 && submerged != 0 && speed > 1){
       let force = Math.abs(submerged - this.lastSub) * speed;
       
@@ -78,7 +80,7 @@ class letter {
     
     this.lastSub = submerged;
     
-    this.sy -= submerged * 0.2;
+    this.sy -= submerged * 0.2 * subStep;
     
     let dx = cx - mouse.x;
     let dy = cy - mouse.y;
@@ -93,8 +95,10 @@ class letter {
       this.inTransit = false;
     }
     
-    this.sx *= 1 - 0.15 * submerged;
-    this.sy *= 1 - 0.15 * submerged;
+    let waterResistance = Math.pow(1 - 0.15 * submerged, subStep);
+    
+    this.sx *= waterResistance;
+    this.sy *= waterResistance;
     
     if(this.freeze){
       this.sx = 0;
@@ -106,8 +110,8 @@ class letter {
       let dx = this.startX - this.x;
       let dy = this.startY - this.y;
       
-      this.x += dx / 4;
-      this.y += dy / 4;
+      this.x += dx / 4 * subStep;
+      this.y += dy / 4 * subStep;
       
       this.sx = 0;
       this.sy = 0;
@@ -116,14 +120,12 @@ class letter {
       
       let distToTarget = Math.hypot(dx, dy);
       if(distToTarget < 1){
-        this.x = this.startX;
-        this.y = this.startY;
         this.freeze = true;
         this.inTransit = false;
       }
     }
     
-    this.x += this.sx;
+    this.x += this.sx * subStep;
     if(this.x < 0){
       this.x = 0;
       this.sx = Math.abs(this.sx) * boundBounce;  
@@ -134,7 +136,7 @@ class letter {
       this.sy *= boundFriction;
     }
      
-    this.y += this.sy;
+    this.y += this.sy * subStep;
     if(this.y < 0){
       this.y = 0;
       this.sx *= boundFriction;
@@ -151,19 +153,25 @@ class letter {
     this.freeze = false;
   }
   
-  collide(other) {
+  collide(other, subStep) {
     if(this.inTransit || other.inTransit) return;
     if(!rectCol(this.x, this.y, this.width, this.height, other.x, other.y, other.width, other.height))
       return;
         
-    let diffX = Math.min(
+    /*let diffX = Math.min(
       (this.x + this.width) - other.x,
       (other.x + other.width) - this.x   
     );
     let diffY = Math.min(
       (this.y + this.height) - other.y,
       (other.y + other.height) - this.y     
-    );
+    );*/
+    
+    let diffX = Math.min(this.x + this.width, other.x + other.width)
+          - Math.max(this.x, other.x);
+    let diffY = Math.min(this.y + this.height, other.y + other.height)
+          - Math.max(this.y, other.y);
+          
     
     let dirX = Math.sign(this.x - other.x);
     let dirY = Math.sign(this.y - other.y);
@@ -176,36 +184,40 @@ class letter {
       b = 1;
     }else if(this.freeze){
       a = 0;
-      b = 1;
+      b = 2;
     }else if(other.freeze){
-      a = 1;
+      a = 2;
       b = 0;
     }
     
+    let perpenMult = subStep * 0.1;
+    
     if(diffX < diffY){ // horiz
-      let displaced = diffX * dirX * 0.8;
+      let displaced = diffX * dirX;
       
       this.x += displaced * a;
       other.x -= displaced * b;   
       
-      this.sx += displaced * 0.5 * a;
-      other.sx -= displaced * 0.5 * b; 
-      
+      let tMass = this.freeze ? -1 : this.mass;
+      let oMass = other.freeze ? -1 : other.mass;      
+      [this.sx, other.sx] = resolveCollision(this.sx, other.sx, tMass, oMass, 0.5);
+       
       let avePerpenSpeed = (this.sy + other.sy) / 2;
-      this.sy += (avePerpenSpeed - this.sy) / 10;
-      other.sy += (avePerpenSpeed - other.sy) / 10;    
+      this.sy += (avePerpenSpeed - this.sy) * perpenMult;
+      other.sy += (avePerpenSpeed - other.sy) * perpenMult;    
     }else{ // vert
-      let displaced = diffY * dirY * 0.8;
+      let displaced = diffY * dirY;
       
       this.y += displaced * a;
       other.y -= displaced * b;   
       
-      this.sy += displaced * 0.5 * a;
-      other.sy -= displaced * 0.5 * b; 
+      let tMass = this.freeze ? -1 : this.mass;
+      let oMass = other.freeze ? -1 : other.mass;      
+      [this.sy, other.sy] = resolveCollision(this.sy, other.sy, tMass, oMass, 0.5);
       
       let avePerpenSpeed = (this.sx + other.sx) / 2;
-      this.sx += (avePerpenSpeed - this.sx) / 10;
-      other.sx += (avePerpenSpeed - other.sx) / 10;
+      this.sx += (avePerpenSpeed - this.sx) * perpenMult;
+      other.sx += (avePerpenSpeed - other.sx) * perpenMult;
     }
   }
   
@@ -214,7 +226,7 @@ class letter {
     let size = (this.width + this.height) / 2
     if(dist > size){
       ctx.lineWidth = size;
-      ctx.globalAlpha = this.aveAlpha / 255;
+      ctx.globalAlpha = (this.aveAlpha / 255) * (size / dist);
       
       let offX = this.width / 2;
       let offY = this.height / 2;
@@ -319,6 +331,29 @@ let elements = [];
 let bubbles = [];
 let splashes = [];
 
+let stepManager = {
+  smallestSize: 100,
+  fastestSpeed: 100,
+  steps: 1,
+  update: function() {
+    this.smallestSize = 99999;
+    for(let elem of elements){
+      let size = (elem.width + elem.height) / 2;
+      this.smallestSize = Math.min(size, this.smallestSize);
+    }
+ 
+    this.fastestSpeed = 0;
+    for(let elem of elements){
+      let speed = Math.hypot(elem.sx, elem.sy);
+      this.fastestSpeed = Math.max(speed, this.fastestSpeed);
+    } 
+    
+    this.steps = Math.ceil(this.fastestSpeed / this.smallestSize);
+    this.steps = Math.min(40, this.steps);
+    this.steps = Math.max(1, this.steps);
+  }
+};
+
 function startingPhrase(text, yOffset) {
   let originX = canvas.width * 0.5 - (text.length * charW) * 0.5;
   let originY = canvas.height * 0.5 - charH * 0.5 + yOffset;
@@ -378,13 +413,17 @@ function loop() {
   
   waterLevel = (1 - targetLevel) * 0.001 + waterLevel * 0.999;
   
-  for(let p = 0; p < 2; p++)
-  for(let i = 0; i < elements.length; i++)
-    for(let j = i + 1; j < elements.length; j++)
-      elements[i].collide(elements[j]);
+  stepManager.update();
+  for(let u = 0; u < stepManager.steps; u++){
+    let subStep = 1 / stepManager.steps;
+    
+    for(let i = 0; i < elements.length; i++)
+      for(let j = i + 1; j < elements.length; j++)
+        elements[i].collide(elements[j], subStep);
       
-  for(let elem of elements)
-    elem.update();
+    for(let elem of elements)
+      elem.update(subStep);
+  }
     
   for(let elem of elements)
     elem.draw();
@@ -394,7 +433,11 @@ function loop() {
   /*document.getElementById("debug").innerText = 
     "splashes: " + splashes.length +
     "\nbubbles: " + bubbles.length;*/
-  
+  /*document.getElementById("debug").innerText = 
+    "size: " + this.smallestSize +
+    "\nspeed: " + this.fastestSpeed +
+    "\nsteps: " + this.steps;*/
+      
   frame++;
   window.requestAnimationFrame(loop);
 }
@@ -430,6 +473,20 @@ function drawWater() {
   ctx.globalAlpha = 0.3;
   ctx.drawImage(buffer, 0, 0);
   ctx.globalAlpha = 1;
+}
+
+function resolveCollision(v1, v2, m1, m2, e = 1) {
+  const immovable1 = m1 < 0;
+  const immovable2 = m2 < 0;
+
+  if (immovable1 && immovable2) return [v1, v2];
+  if (immovable1) return [0, -v2 * e];
+  if (immovable2) return [-v1 * e, 0];
+
+  const newV1 = ((m1 - e * m2) * v1 + (1 + e) * m2 * v2) / (m1 + m2);
+  const newV2 = ((m2 - e * m1) * v2 + (1 + e) * m1 * v1) / (m1 + m2);
+
+  return [newV1, newV2];
 }
 
 function rectCol(ax, ay, aw, ah, bx, by, bw, bh, forWalls = false) {
