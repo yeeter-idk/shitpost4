@@ -87,9 +87,10 @@ class letter {
     let dist = Math.hypot(dx, dy);
     if(mouse.down && mouse.range >= dist){
       let force = (mouse.range - dist) / mouse.range * 20;
+      //let force = Math.pow(dist, 1.5) / mouse.range * -2;
       
-      this.sx += dx / dist * force;
-      this.sy += dy / dist * force;
+      this.sx += dx / dist * force * subStep;
+      this.sy += dy / dist * force * subStep;
       
       this.freeze = false;
       this.inTransit = false;
@@ -158,20 +159,10 @@ class letter {
     if(!rectCol(this.x, this.y, this.width, this.height, other.x, other.y, other.width, other.height))
       return;
         
-    /*let diffX = Math.min(
-      (this.x + this.width) - other.x,
-      (other.x + other.width) - this.x   
-    );
-    let diffY = Math.min(
-      (this.y + this.height) - other.y,
-      (other.y + other.height) - this.y     
-    );*/
-    
     let diffX = Math.min(this.x + this.width, other.x + other.width)
           - Math.max(this.x, other.x);
     let diffY = Math.min(this.y + this.height, other.y + other.height)
           - Math.max(this.y, other.y);
-          
     
     let dirX = Math.sign(this.x - other.x);
     let dirY = Math.sign(this.y - other.y);
@@ -241,6 +232,12 @@ class letter {
       ctx.fillText(this.character, this.x - this.offsetX, this.y + charH - this.offsetY);
     }
     
+    /*if(Math.hypot(this.sx, this.sy) > stepManager.fastestSpeed - 1){
+      ctx.globalAlpha = 0.3;
+      ctx.fillRect(this.x, this.y, this.width, this.height);
+      ctx.globalAlpha = 1;
+    }*/
+    
     this.lastX = this.x;
     this.lastY = this.y;
   }
@@ -257,13 +254,14 @@ class bubble {
   }
   
   update() {
-    this.sy -= 0.13;
+    this.sy -= 0.13 * deltaTime;
     
-    this.sx *= 0.9;
-    this.sy *= 0.9;
+    let mult = Math.pow(0.9, deltaTime);
+    this.sx *= mult;
+    this.sy *= mult;
     
-    this.x += this.sx;
-    this.y += this.sy;
+    this.x += this.sx * deltaTime;
+    this.y += this.sy * deltaTime;
     
     if(this.y + this.radius < waterLevel * canvas.height)
       return true;
@@ -289,10 +287,10 @@ class splash {
   }
   
   update() {
-    this.sy += 0.1;
+    this.sy += 0.1 * deltaTime;
     
-    this.x += this.sx;
-    this.y += this.sy;
+    this.x += this.sx * deltaTime;
+    this.y += this.sy * deltaTime;
     
     if(this.y - this.radius > waterLevel * canvas.height)
       return true;
@@ -325,6 +323,18 @@ let mouse = {
   lastTouch: -1000,
 };
 
+let deltaTime = 0; // 1 = 1frame
+let timeManager = {
+  st: 0,
+  update: function() {
+    let curTime = performance.now();
+    
+    deltaTime = (curTime - this.st) / 1000 * 60;
+    
+    this.st = curTime;
+  }
+};
+
 let frame = 1;
 
 let elements = [];
@@ -349,8 +359,8 @@ let stepManager = {
     } 
     
     this.steps = Math.ceil(this.fastestSpeed / this.smallestSize);
-    this.steps = Math.min(40, this.steps);
-    this.steps = Math.max(1, this.steps);
+    this.steps = Math.min(20, this.steps);
+    this.steps = Math.max(2, this.steps);
   }
 };
 
@@ -360,11 +370,19 @@ function startingPhrase(text, yOffset) {
   
   for(let i = 0; i < text.length; i++){
     let character = text[i];
-    if(character == " ") continue;
+    if(character.trim().length == 0) continue;
     
     elements.push(
       new letter(character, originX + i * charW, originY)
     );
+  }
+}
+
+function startingParagraph(text) {
+  let lines = text.split("\n");
+  
+  for(let i = 0; i < lines.length; i++){
+    startingPhrase(lines[i], -lines.length * charH * 1 / 2 + charH * i);
   }
 }
 
@@ -386,17 +404,30 @@ function setup() {
   charW = metrics.width;
   charH = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
   
-  //startingPhrase("Procrastination is a CRAZY drug.", 0);
+  let text = "Procrastination is a CRAZY drug.\n\n";
   
-  //startingPhrase("Kriztoffer.", 0);
+  text += [
+    "I hope the AI craze crashes\nharder than the great depression.",
+    "Stream Inabakumori.",
+    "It's Morbin time.",
+    "Road work ahead?\nSure hope it does!",
+    "Double tap to reset.",
+    "The more you care, the more you get hurt.",
+    "My head hurts.",
+    "Hello everybody, my name is welcome.",
+    "What's the deal with airline food?",
+    "Sebastian Lague and Acerola are great."
+  ][Math.floor(Math.random() * 10)];
   
-  startingPhrase("Procrastination is a CRAZY drug.", -charH * 0.6);
-  startingPhrase("Double tap to reset.", charH * 0.6);
-    
+  startingParagraph(text);
+      
   loop();
 }
 
-function loop() {
+async function loop() {
+  window.requestAnimationFrame(await loop);
+  timeManager.update();  
+  
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
   if(frame % 200 == 0){
@@ -415,7 +446,7 @@ function loop() {
   
   stepManager.update();
   for(let u = 0; u < stepManager.steps; u++){
-    let subStep = 1 / stepManager.steps;
+    let subStep = 1 / stepManager.steps * deltaTime;
     
     for(let i = 0; i < elements.length; i++)
       for(let j = i + 1; j < elements.length; j++)
@@ -423,6 +454,11 @@ function loop() {
       
     for(let elem of elements)
       elem.update(subStep);
+      
+    /*for(let elem of elements)
+      elem.draw();
+      
+    for(let k = 0; k < 1; k++) await frameDelay();*/
   }
     
   for(let elem of elements)
@@ -433,13 +469,13 @@ function loop() {
   /*document.getElementById("debug").innerText = 
     "splashes: " + splashes.length +
     "\nbubbles: " + bubbles.length;*/
-  /*document.getElementById("debug").innerText = 
-    "size: " + this.smallestSize +
-    "\nspeed: " + this.fastestSpeed +
-    "\nsteps: " + this.steps;*/
-      
+  document.getElementById("debug").innerText = 
+    "size: " + stepManager.smallestSize +
+    "\nspeed: " + stepManager.fastestSpeed +
+    "\nsteps: " + stepManager.steps;
+    
+  ctx.fillText(Math.round(60 / deltaTime), 0, canvas.height);
   frame++;
-  window.requestAnimationFrame(loop);
 }
 
 function drawWater() {
@@ -543,4 +579,10 @@ function getTouchPosition(e) {
   y *= canvas.height / rect.height;
   
   return [x, y];
+}
+
+function frameDelay() {
+  return new Promise((resolve, reject) => {
+    window.requestAnimationFrame(resolve);
+  });
 }
