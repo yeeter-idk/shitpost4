@@ -5,7 +5,7 @@ function getExactRect(character) {
   field.width = charW * 3;
   field.height = charH * 3;
   
-  fCtx.font = fontSize + "px 'Courier New'";
+  setFont(fCtx);
   fCtx.fillText(character, charW, charH * 2);
   
   let top = 99999;

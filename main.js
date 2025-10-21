@@ -320,20 +320,25 @@ let mouse = {
   x: 0, 
   y: 0,
   down: false,
-  lastTouch: -1000,
+  lastTouches: [-1000]
 };
 
 let deltaTime = 0; // 1 = 1frame
 let timeManager = {
+  timeSpeed: 1,
   st: 0,
+  aveDT: 1,
   update: function() {
     let curTime = performance.now();
     
-    deltaTime = (curTime - this.st) / 1000 * 60;
+    deltaTime = (curTime - this.st) / 1000 * 60 * this.timeSpeed;
+    this.aveDT = this.aveDT * 0.9 + deltaTime * 0.1;
     
     this.st = curTime;
   }
 };
+
+let debugEnabled = false;
 
 let frame = 1;
 
@@ -386,27 +391,8 @@ function startingParagraph(text) {
   }
 }
 
-function reset() {
-  for(let letter of elements) letter.reset();
-}
-
-setup();
-function setup() {
-  canvas.width = 600;
-  canvas.height = 600;
-  buffer.width = 600;
-  buffer.height = 600;
-  
-  ctx.font = fontSize + "px 'Courier New'";
-  
-  let metrics = ctx.measureText("A");
-  
-  charW = metrics.width;
-  charH = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
-  
-  let text = "Procrastination is a CRAZY drug.\n\n";
-  
-  text += [
+function getRandomMessage() {
+  let messages = [
     "I hope the AI craze crashes\nharder than the great depression.",
     "Stream Inabakumori.",
     "It's Morbin time.",
@@ -416,8 +402,48 @@ function setup() {
     "My head hurts.",
     "Hello everybody, my name is welcome.",
     "What's the deal with airline food?",
-    "Sebastian Lague and Acerola are great."
-  ][Math.floor(Math.random() * 10)];
+    "Sebastian Lague and Acerola are great.",
+    "I love Javascript.",
+    "Triple tap to enable debug.",
+    "Watch Sleep Deprived\nand Chuckle Sandwich.",
+    "Crazy? I was crazy once,\nthey locked me in a room, a rubber room,\na rubber room with rats,\nand rats make me crazy. Crazy?\nI was crazy once, they locked me in a\nroom, a rubber room, a rubber room with\nrats, and rats make me crazy.\nCrazy?",
+    "It's bullshit all the way down.",
+    "Got 47/50, it ain't perfect,\nbut it's honest work."
+  ];
+  
+  return messages[Math.floor(Math.random() * messages.length)];
+  //return messages[messages.length - 2];
+}
+
+function reset() {
+  for(let letter of elements) letter.reset();
+}
+
+function setFont(context = ctx) {
+  context.font = fontSize + "px 'Courier New'";
+  //context.font = fontSize + "px monospace";
+  //context.font = fontSize + "px arial";
+}
+
+setup();
+function setup() {
+  canvas.width = 600;
+  canvas.height = 600;
+  buffer.width = 600;
+  buffer.height = 600;
+  
+  setFont();
+  
+  let metrics = ctx.measureText("A");
+  
+  charW = metrics.width;
+  charH = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
+  
+  document.getElementById("timeSpeed").style.visibility = "hidden";
+  
+  let text = "Procrastination is a CRAZY drug.\n\n";
+  
+  text += getRandomMessage();
   
   startingParagraph(text);
       
@@ -455,26 +481,33 @@ async function loop() {
     for(let elem of elements)
       elem.update(subStep);
       
-    /*for(let elem of elements)
+   /*for(let elem of elements)
       elem.draw();
       
-    for(let k = 0; k < 1; k++) await frameDelay();*/
+    for(let k = 0; k < 25; k++) await frameDelay();*/
   }
-    
+  
   for(let elem of elements)
     elem.draw();
   
   drawWater();
   
-  /*document.getElementById("debug").innerText = 
-    "splashes: " + splashes.length +
-    "\nbubbles: " + bubbles.length;*/
-  document.getElementById("debug").innerText = 
-    "size: " + stepManager.smallestSize +
-    "\nspeed: " + stepManager.fastestSpeed +
-    "\nsteps: " + stepManager.steps;
+  if(debugEnabled){
+    timeManager.timeSpeed = parseFloat(document.getElementById("timeSpeed").value);
+  
+    document.getElementById("debug").innerText = 
+      "Splash Particles: " + splashes.length +
+      "\nBubble Particles: " + bubbles.length +
+      "\nLowest Size Letter: " + stepManager.smallestSize +
+      "\nFastest Speed: " + stepManager.fastestSpeed +
+      "\nSimulation Steps: " + stepManager.steps + 
+      "\nTouch Times: " + mouse.lastTouches.join(", ") + 
+      "\nTime Speed: " + timeManager.timeSpeed;
+    ctx.fillText(Math.floor(60 / timeManager.aveDT), 0, canvas.height);
+  }else{
+    document.getElementById("debug").innerText = "";
+  }
     
-  ctx.fillText(Math.round(60 / deltaTime), 0, canvas.height);
   frame++;
 }
 
@@ -550,9 +583,18 @@ canvas.addEventListener("touchstart", (e) => {
   
   let curTouch = performance.now();
   
-  if(curTouch - mouse.lastTouch <= 200) reset();
+  if(curTouch - mouse.lastTouches[0] <= 200) reset();
   
-  mouse.lastTouch = curTouch;
+  if(curTouch - mouse.lastTouches[1] <= 400 && 
+    mouse.lastTouches[1] - mouse.lastTouches[0] <= 400){ 
+    debugEnabled = !debugEnabled;
+    document.getElementById("timeSpeed").style.visibility = debugEnabled ? "visible" : "hidden";
+    mouse.lastTouches = [];
+  }
+  
+  mouse.lastTouches.unshift(curTouch);
+  if(mouse.lastTouches.length > 2) mouse.lastTouches.pop();
+
 });
 canvas.addEventListener("touchmove", (e) => {
   e.preventDefault();
@@ -564,8 +606,6 @@ canvas.addEventListener("touchmove", (e) => {
 canvas.addEventListener("touchend", () => {
   mouse.down = false;
 });
-
-
 
 function getTouchPosition(e) {
   let touch = e.touches[0];
