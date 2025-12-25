@@ -28,7 +28,7 @@ function rectCol(ax, ay, aw, ah, bx, by, bw, bh, forWalls = false) {
 }
 
 canvas.addEventListener("touchstart", (e) => {
-  //e.preventDefault();
+  e.preventDefault();
   let [x, y] = getTouchPosition(e);
   
   mouse.lastTime = performance.now();
@@ -55,13 +55,16 @@ canvas.addEventListener("touchstart", (e) => {
 
 });
 canvas.addEventListener("touchmove", (e) => {
-  //e.preventDefault();
+  e.preventDefault();
   let [x, y] = getTouchPosition(e);
  
   mouse.x = x;
   mouse.y = y;
 });
 canvas.addEventListener("touchend", () => {
+  mouse.down = false;
+});
+canvas.addEventListener("touchcancel", () => {
   mouse.down = false;
 });
 
