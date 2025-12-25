@@ -3,329 +3,44 @@ let ctx = canvas.getContext("2d");
 let buffer = document.createElement("canvas");
 let bCtx = buffer.getContext("2d");
 
-class letter {
-  constructor(character, x, y) {
-    this.character = character;
-    
-    let [left, top, right, bottom, aveAlpha] = getExactRect(character);
-    
-    this.offsetX = left;
-    this.offsetY = top;
-    this.width = right - left;
-    this.height = bottom - top;
-    this.aveAlpha = aveAlpha;
-    
-    this.x = x + this.offsetX;
-    this.y = y + this.offsetY;
-    
-    this.lastX = this.x;
-    this.lastY = this.y;
-    
-    this.sx = 0;
-    this.sy = 0;    
-    
-    this.startX = this.x;
-    this.startY = this.y;
-    
-    this.mass = (this.width + this.height) / 2;
-    
-    this.freeze = true;
-    this.inTransit = false;
-    
-    this.lastSub = 0;
-  }
-  
-  update(subStep) {
-    this.sy += 0.1 * subStep;
-    
-    // centered
-    let cx = this.x + this.width * 0.5; 
-    let cy = this.y + this.height * 0.5;
-    
-    let waterHeight = waterLevel * canvas.height;
-    
-    let submerged = -(waterHeight - this.y - this.height) / this.height;
-    submerged = Math.max(0, Math.min(submerged, 1));
-    
-    let speed = Math.hypot(this.sx, this.sy);      
-    
-    if(Math.random() < subStep)
-    if((submerged - this.lastSub) * 4 > Math.random()){
-      bubbles.push(
-        new bubble(
-          cx, 
-          waterHeight, 
-          this.sx + (Math.random() - 0.5) * 6, 
-          this.sy + (Math.random() - 0.5) * 6
-        )
-      );
-    }
-    
-    if(Math.random() < subStep)
-    if(submerged != 1 && submerged != 0 && speed > 1){
-      let force = Math.abs(submerged - this.lastSub) * speed;
-      
-      let lateral = this.sx + (Math.random() - 0.5) * force;
-      let vertical = -speed / 2;
-      
-      splashes.push(
-        new splash(
-          cx, 
-          waterHeight, 
-          lateral, 
-          vertical
-        )
-      );
-    }
-    
-    this.lastSub = submerged;
-    
-    this.sy -= submerged * 0.2 * subStep;
-    
-    let dx = cx - mouse.x;
-    let dy = cy - mouse.y;
-    let dist = Math.hypot(dx, dy);
-    if(mouse.down && mouse.range >= dist){
-      let force = (mouse.range - dist) / mouse.range * 20;
-      //let force = Math.pow(dist, 1.5) / mouse.range * -2;
-      
-      this.sx += dx / dist * force * subStep;
-      this.sy += dy / dist * force * subStep;
-      
-      this.freeze = false;
-      this.inTransit = false;
-    }
-    
-    let waterResistance = Math.pow(1 - 0.15 * submerged, subStep);
-    
-    this.sx *= waterResistance;
-    this.sy *= waterResistance;
-    
-    if(this.freeze){
-      this.sx = 0;
-      this.sy = 0;
-      this.x = this.startX;
-      this.y = this.startY;      
-    }
-    if(this.inTransit){
-      let dx = this.startX - this.x;
-      let dy = this.startY - this.y;
-      
-      this.x += dx / 4 * subStep;
-      this.y += dy / 4 * subStep;
-      
-      this.sx = 0;
-      this.sy = 0;
-      
-      this.freeze = false;
-      
-      let distToTarget = Math.hypot(dx, dy);
-      if(distToTarget < 1){
-        this.freeze = true;
-        this.inTransit = false;
-      }
-    }
-    
-    this.x += this.sx * subStep;
-    if(this.x < 0){
-      this.x = 0;
-      this.sx = Math.abs(this.sx) * boundBounce;  
-      this.sy *= boundFriction;
-    }else if(this.x + this.width > canvas.width){
-      this.x = canvas.width - this.width;
-      this.sx = -Math.abs(this.sx) * boundBounce;  
-      this.sy *= boundFriction;
-    }
-     
-    this.y += this.sy * subStep;
-    if(this.y < 0){
-      this.y = 0;
-      this.sx *= boundFriction;
-      this.sy = Math.abs(this.sy) * boundBounce;  
-    }else if(this.y + this.height > canvas.height){
-      this.y = canvas.height - this.height;
-      this.sx *= boundFriction;
-      this.sy = -Math.abs(this.sy) * boundBounce;
-    }
-  }
-  
-  reset() {
-    this.inTransit = true;
-    this.freeze = false;
-  }
-  
-  collide(other, subStep) {
-    if(this.inTransit || other.inTransit) return;
-    if(!rectCol(this.x, this.y, this.width, this.height, other.x, other.y, other.width, other.height))
-      return;
-        
-    let diffX = Math.min(this.x + this.width, other.x + other.width)
-          - Math.max(this.x, other.x);
-    let diffY = Math.min(this.y + this.height, other.y + other.height)
-          - Math.max(this.y, other.y);
-    
-    let dirX = Math.sign(this.x - other.x);
-    let dirY = Math.sign(this.y - other.y);
-    
-    let a = other.mass / this.mass;
-    let b = this.mass / other.mass;
-    
-    if(this.freeze && other.freeze){
-      a = 1;
-      b = 1;
-    }else if(this.freeze){
-      a = 0;
-      b = 2;
-    }else if(other.freeze){
-      a = 2;
-      b = 0;
-    }
-    
-    let perpenMult = subStep * 0.1;
-    
-    if(diffX < diffY){ // horiz
-      let displaced = diffX * dirX;
-      
-      this.x += displaced * a;
-      other.x -= displaced * b;   
-      
-      let tMass = this.freeze ? -1 : this.mass;
-      let oMass = other.freeze ? -1 : other.mass;      
-      [this.sx, other.sx] = resolveCollision(this.sx, other.sx, tMass, oMass, 0.5);
-       
-      let avePerpenSpeed = (this.sy + other.sy) / 2;
-      this.sy += (avePerpenSpeed - this.sy) * perpenMult;
-      other.sy += (avePerpenSpeed - other.sy) * perpenMult;    
-    }else{ // vert
-      let displaced = diffY * dirY;
-      
-      this.y += displaced * a;
-      other.y -= displaced * b;   
-      
-      let tMass = this.freeze ? -1 : this.mass;
-      let oMass = other.freeze ? -1 : other.mass;      
-      [this.sy, other.sy] = resolveCollision(this.sy, other.sy, tMass, oMass, 0.5);
-      
-      let avePerpenSpeed = (this.sx + other.sx) / 2;
-      this.sx += (avePerpenSpeed - this.sx) * perpenMult;
-      other.sx += (avePerpenSpeed - other.sx) * perpenMult;
-    }
-  }
-  
-  draw() {
-    let dist = Math.hypot(this.x - this.lastX, this.y - this.lastY);
-    let size = (this.width + this.height) / 2
-    if(dist > size){
-      ctx.lineWidth = size;
-      ctx.globalAlpha = (this.aveAlpha / 255) * (size / dist);
-      
-      let offX = this.width / 2;
-      let offY = this.height / 2;
-      
-      ctx.beginPath();
-      ctx.moveTo(this.lastX + offX, this.lastY + offY);
-      ctx.lineTo(this.x + offX, this.y + offY);
-      ctx.stroke();
-      
-      ctx.globalAlpha = 1;
-    }else{
-      ctx.fillText(this.character, this.x - this.offsetX, this.y + charH - this.offsetY);
-    }
-    
-    /*if(Math.hypot(this.sx, this.sy) > stepManager.fastestSpeed - 1){
-      ctx.globalAlpha = 0.3;
-      ctx.fillRect(this.x, this.y, this.width, this.height);
-      ctx.globalAlpha = 1;
-    }*/
-    
-    this.lastX = this.x;
-    this.lastY = this.y;
-  }
-}
-
-class bubble {
-  constructor(x, y, sx, sy) {
-    this.x = x;
-    this.y = y;
-    this.sx = sx;
-    this.sy = sy;
-    
-    this.radius = 1;
-  }
-  
-  update() {
-    this.sy -= 0.13 * deltaTime;
-    
-    let mult = Math.pow(0.9, deltaTime);
-    this.sx *= mult;
-    this.sy *= mult;
-    
-    this.x += this.sx * deltaTime;
-    this.y += this.sy * deltaTime;
-    
-    if(this.y + this.radius < waterLevel * canvas.height)
-      return true;
-      
-    return false;
-  }
-  
-  draw() {
-    bCtx.beginPath();
-    bCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    bCtx.fill();
-  }
-}
-
-class splash {
-  constructor(x, y, sx, sy) {
-    this.x = x;
-    this.y = y;
-    this.sx = sx;
-    this.sy = sy;
-    
-    this.radius = 1.5;
-  }
-  
-  update() {
-    this.sy += 0.1 * deltaTime;
-    
-    this.x += this.sx * deltaTime;
-    this.y += this.sy * deltaTime;
-    
-    if(this.y - this.radius > waterLevel * canvas.height)
-      return true;
-      
-    return false;
-  }
-  
-  draw() {
-    bCtx.beginPath();
-    bCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    bCtx.fill();
-  }
-}
-
-let fontSize = 24;
+let fontSize = 28//24;
 
 let charW = 0;
 let charH = 0;
 
+let gravity = 0.3;
 let boundBounce = 0.5;
-let boundFriction = 0.9;
+let letterBounce = 0.5;
+let boundFriction = 0.5;
+let letterFriction = 0.5;
 
-let waterLevel = 1;
+let waterLevel = 0;
 
 let mouse = {
-  range: 80,
+  range: 100,
   x: 0, 
   y: 0,
+  dx: 0,
+  dy: 0,
+  lastX: 0,
+  lastY: 0,
   down: false,
-  lastTouches: [-1000]
+  lastTouches: [-1000],
+  draw: function() {
+    if(this.down){
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "black";
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.range, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
 };
 
 let deltaTime = 0; // 1 = 1frame
 let timeManager = {
   timeSpeed: 1,
+  time: 0,
   st: 0,
   aveDT: 1,
   update: function() {
@@ -333,6 +48,8 @@ let timeManager = {
     
     deltaTime = (curTime - this.st) / 1000 * 60 * this.timeSpeed;
     this.aveDT = this.aveDT * 0.9 + deltaTime * 0.1;
+    
+    this.time += deltaTime;
     
     this.st = curTime;
   }
@@ -364,8 +81,8 @@ let stepManager = {
     } 
     
     this.steps = Math.ceil(this.fastestSpeed / this.smallestSize);
-    this.steps = Math.min(20, this.steps);
-    this.steps = Math.max(2, this.steps);
+    //this.steps = Math.min(20, this.steps);
+    this.steps = Math.max(20, this.steps);
   }
 };
 
@@ -408,29 +125,30 @@ function getRandomMessage() {
     "Watch Sleep Deprived\nand Chuckle Sandwich.",
     "Crazy? I was crazy once,\nthey locked me in a room, a rubber room,\na rubber room with rats,\nand rats make me crazy. Crazy?\nI was crazy once, they locked me in a\nroom, a rubber room, a rubber room with\nrats, and rats make me crazy.\nCrazy?",
     "It's bullshit all the way down.",
-    "Got 47/50, it ain't perfect,\nbut it's honest work."
+    "Got 47/50, it ain't perfect,\nbut it's honest work.",
+    "Two Cadburys, and a Pepero.\nDo I have enough to\npay for your food too?"
   ];
   
   return messages[Math.floor(Math.random() * messages.length)];
-  //return messages[messages.length - 2];
-}
-
-function reset() {
-  for(let letter of elements) letter.reset();
-}
-
-function setFont(context = ctx) {
-  context.font = fontSize + "px 'Courier New'";
-  //context.font = fontSize + "px monospace";
-  //context.font = fontSize + "px arial";
+  //return messages[13];
 }
 
 setup();
+loop();
+
 function setup() {
-  canvas.width = 600;
+  /*canvas.width = 600;
   canvas.height = 600;
   buffer.width = 600;
-  buffer.height = 600;
+  buffer.height = 600;*/
+  
+  canvas.width = window.innerWidth * 2;
+  canvas.height = window.innerHeight * 2;
+  buffer.width = canvas.width;
+  buffer.height = canvas.height;
+  
+  elements = [];
+  waterLevel = 0;
   
   setFont();
   
@@ -439,15 +157,13 @@ function setup() {
   charW = metrics.width;
   charH = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
   
-  document.getElementById("timeSpeed").style.visibility = "hidden";
+  //document.getElementById("timeSpeed").style.display = "none";
   
   let text = "Procrastination is a CRAZY drug.\n\n";
   
   text += getRandomMessage();
   
   startingParagraph(text);
-      
-  loop();
 }
 
 async function loop() {
@@ -466,37 +182,43 @@ async function loop() {
     }
   }
   
-  let targetLevel = Math.min(frame / 50000 + 0.2, 1); 
-  
-  waterLevel = (1 - targetLevel) * 0.001 + waterLevel * 0.999;
+  let targetLevel = 1 - Math.min(timeManager.time / 50000 - 0.03, 1); 
+ 
+  waterLevel = targetLevel;//(targetLevel - waterLevel) * timeManager.aveDT;
   
   stepManager.update();
   for(let u = 0; u < stepManager.steps; u++){
-    let subStep = 1 / stepManager.steps * deltaTime;
+    let subStep = 1 / stepManager.steps// * deltaTime;
     
     for(let i = 0; i < elements.length; i++)
       for(let j = i + 1; j < elements.length; j++)
         elements[i].collide(elements[j], subStep);
       
     for(let elem of elements)
-      elem.update(subStep);
+      elem.update(subStep, stepManager.steps);
       
-   /*for(let elem of elements)
-      elem.draw();
-      
-    for(let k = 0; k < 25; k++) await frameDelay();*/
+    /*for(let elem of elements)
+      elem.draw();*/
+    
+    //if(u % 2 == 0) await frameDelay();
+    //for(let k = 0; k < 1; k++) await frameDelay();
   }
   
   for(let elem of elements)
     elem.draw();
+    
+  mouse.draw();
   
   drawWater();
   
   if(debugEnabled){
-    timeManager.timeSpeed = parseFloat(document.getElementById("timeSpeed").value);
+    //timeManager.timeSpeed = parseFloat(document.getElementById("timeSpeed").value);
   
+    document.getElementById("debugContainer").style.display = "block";
+    
     document.getElementById("debug").innerText = 
-      "Splash Particles: " + splashes.length +
+      "Letters: " + elements.length +
+      "\nSplash Particles: " + splashes.length +
       "\nBubble Particles: " + bubbles.length +
       "\nLowest Size Letter: " + stepManager.smallestSize +
       "\nFastest Speed: " + stepManager.fastestSpeed +
@@ -505,10 +227,17 @@ async function loop() {
       "\nTime Speed: " + timeManager.timeSpeed;
     ctx.fillText(Math.floor(60 / timeManager.aveDT), 0, canvas.height);
   }else{
-    document.getElementById("debug").innerText = "";
+    document.getElementById("debugContainer").style.display = "none";
   }
     
   frame++;
+  
+  mouse.dx = (mouse.x - mouse.lastX) / deltaTime;
+  mouse.dy = (mouse.y - mouse.lastY) / deltaTime;
+  
+  mouse.lastX = mouse.x;
+  mouse.lastY = mouse.y;
+  //window.requestAnimationFrame(await loop);
 }
 
 function drawWater() {
@@ -544,85 +273,3 @@ function drawWater() {
   ctx.globalAlpha = 1;
 }
 
-function resolveCollision(v1, v2, m1, m2, e = 1) {
-  const immovable1 = m1 < 0;
-  const immovable2 = m2 < 0;
-
-  if (immovable1 && immovable2) return [v1, v2];
-  if (immovable1) return [0, -v2 * e];
-  if (immovable2) return [-v1 * e, 0];
-
-  const newV1 = ((m1 - e * m2) * v1 + (1 + e) * m2 * v2) / (m1 + m2);
-  const newV2 = ((m2 - e * m1) * v2 + (1 + e) * m1 * v1) / (m1 + m2);
-
-  return [newV1, newV2];
-}
-
-function rectCol(ax, ay, aw, ah, bx, by, bw, bh, forWalls = false) {
-  if(forWalls){ // a = bound : b = ent
-    
-    return ax > bx || ax + aw < bx + bw ||
-           ay > by || ay + ah < by + bh;
-    
-  }
-  
-  // interchangeable a : b
-  
-  return (ax < bx + bw && ax + aw > bx) && 
-         (ay < by + bh && ay + ah > by);
-  
-}
-
-canvas.addEventListener("touchstart", (e) => {
-  e.preventDefault();
-  let [x, y] = getTouchPosition(e);
-  
-  mouse.x = x;
-  mouse.y = y;
-  mouse.down = true;
-  
-  let curTouch = performance.now();
-  
-  if(curTouch - mouse.lastTouches[0] <= 200) reset();
-  
-  if(curTouch - mouse.lastTouches[1] <= 400 && 
-    mouse.lastTouches[1] - mouse.lastTouches[0] <= 400){ 
-    debugEnabled = !debugEnabled;
-    document.getElementById("timeSpeed").style.visibility = debugEnabled ? "visible" : "hidden";
-    mouse.lastTouches = [];
-  }
-  
-  mouse.lastTouches.unshift(curTouch);
-  if(mouse.lastTouches.length > 2) mouse.lastTouches.pop();
-
-});
-canvas.addEventListener("touchmove", (e) => {
-  e.preventDefault();
-  let [x, y] = getTouchPosition(e);
-  
-  mouse.x = x;
-  mouse.y = y;
-});
-canvas.addEventListener("touchend", () => {
-  mouse.down = false;
-});
-
-function getTouchPosition(e) {
-  let touch = e.touches[0];
-  
-  let rect = canvas.getBoundingClientRect();
-  
-  let x = touch.pageX - rect.left;
-  let y = touch.pageY - rect.top;
-  
-  x *= canvas.width / rect.width;
-  y *= canvas.height / rect.height;
-  
-  return [x, y];
-}
-
-function frameDelay() {
-  return new Promise((resolve, reject) => {
-    window.requestAnimationFrame(resolve);
-  });
-}

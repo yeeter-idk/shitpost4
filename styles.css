@@ -7,6 +7,19 @@ html, body{
   font-family: arial;
 }
 
+/*input{
+  //touch-action: none;
+  z-index: 1;
+}*/
+
+#debugContainer{
+  touch-action: none;
+  z-index: 1;
+}
+
 canvas{
   width: 100%;
+  position: absolute;
+  top: 0px;
+  left: 0px;
 }
