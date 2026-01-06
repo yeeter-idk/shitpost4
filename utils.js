@@ -131,8 +131,8 @@ function getTouchPosition(e) {
 function getMousePosition(e) {
   let rect = canvas.getBoundingClientRect();
   
-  let x = e.pageX - rect.left;
-  let y = e.pageY - rect.top;
+  let x = e.clientX - rect.left;
+  let y = e.clientY - rect.top;
   
   x *= canvas.width / rect.width;
   y *= canvas.height / rect.height;
