@@ -68,6 +68,52 @@ canvas.addEventListener("touchcancel", () => {
   mouse.down = false;
 });
 
+canvas.addEventListener("mousedown", (e) => {
+  e.preventDefault();
+  let [x, y] = getTouchPosition(e);
+  
+  mouse.lastTime = performance.now();
+  mouse.x = x;
+  mouse.y = y;
+  mouse.dx = 0;
+  mouse.dy = 0;
+  mouse.lastX = x;
+  mouse.lastY = y;
+  mouse.down = true;
+  
+  let curTouch = performance.now();
+  
+  if(curTouch - mouse.lastTouches[0] <= 200) reset();
+  
+  if(curTouch - mouse.lastTouches[1] <= 400 && 
+    mouse.lastTouches[1] - mouse.lastTouches[0] <= 400){ 
+    debugEnabled = !debugEnabled;
+    mouse.lastTouches = [];
+  }
+  
+  mouse.lastTouches.unshift(curTouch);
+  if(mouse.lastTouches.length > 2) mouse.lastTouches.pop();
+
+});
+canvas.addEventListener("mousemove", (e) => {
+  if(!mouse.down) return;
+  e.preventDefault();
+  let [x, y] = getTouchPosition(e);
+  
+  mouse.x = x;
+  mouse.y = y;
+});
+canvas.addEventListener("mouseup", () => {
+  mouse.down = false;
+});
+canvas.addEventListener("mouseout", () => {
+  mouse.down = false;
+});
+canvas.addEventListener("mouseleave", () => {
+  mouse.down = false;
+});
+
+
 function getTouchPosition(e) {
   let touch = e.touches[0];
   
