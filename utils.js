@@ -70,7 +70,7 @@ canvas.addEventListener("touchcancel", () => {
 
 canvas.addEventListener("mousedown", (e) => {
   e.preventDefault();
-  let [x, y] = getTouchPosition(e);
+  let [x, y] = getMousePosition(e);
   
   mouse.lastTime = performance.now();
   mouse.x = x;
@@ -98,7 +98,7 @@ canvas.addEventListener("mousedown", (e) => {
 canvas.addEventListener("mousemove", (e) => {
   if(!mouse.down) return;
   e.preventDefault();
-  let [x, y] = getTouchPosition(e);
+  let [x, y] = getMousePosition(e);
   
   mouse.x = x;
   mouse.y = y;
@@ -121,6 +121,18 @@ function getTouchPosition(e) {
   
   let x = touch.pageX - rect.left;
   let y = touch.pageY - rect.top;
+  
+  x *= canvas.width / rect.width;
+  y *= canvas.height / rect.height;
+  
+  return [x, y];
+}
+
+function getMousePosition(e) {
+  let rect = canvas.getBoundingClientRect();
+  
+  let x = e.pageX - rect.left;
+  let y = e.pageY - rect.top;
   
   x *= canvas.width / rect.width;
   y *= canvas.height / rect.height;
